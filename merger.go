@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/xml"
+	"fmt"
 	"io/ioutil"
 	"math"
 	"os"
@@ -38,50 +39,39 @@ type Data struct {
 	}
 }
 
-func merge() {
-	d1, _ := ioutil.ReadFile("05_26_18.tcx")
-	var data1 Data
-	xml.Unmarshal(d1, &data1)
-
-	d2, _ := ioutil.ReadFile("05_27_18.tcx")
-	var data2 Data
-	xml.Unmarshal(d2, &data2)
-
-	// add TotalTimeSeconds, DistanceMeters
-	// max of maximumSpeed
-	// sum of Calories
-
-	l1 := len(data1.Activities.Activity[0].Lap.Track.Trackpoint)
-	l2 := len(data2.Activities.Activity[0].Lap.Track.Trackpoint)
-	points := make([]Trackpoint, l1+l2)
+func merge(files []string) {
+	data := make([]Data, len(files))
+	for i, f := range files {
+		d, err := ioutil.ReadFile(f)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(-1)
+		}
+		xml.Unmarshal(d, &data[i])
+	}
+	l := 0
+	for _, d := range data {
+		l += len(d.Activities.Activity[0].Lap.Track.Trackpoint)
+	}
+	points := make([]Trackpoint, l)
 	k := 0
-	for _, p := range data1.Activities.Activity[0].Lap.Track.Trackpoint {
-		points[k] = p
-		k++
+	var totalTime int64
+	var distance float64
+	var maxSpeed float64
+	var cal int64
+	for _, d := range data {
+		for _, p := range d.Activities.Activity[0].Lap.Track.Trackpoint {
+			points[k] = p
+			k++
+		}
+		totalTime += d.Activities.Activity[0].Lap.TotalTimeSeconds
+		distance += d.Activities.Activity[0].Lap.DistanceMeters
+		maxSpeed = math.Max(maxSpeed, d.Activities.Activity[0].Lap.MaximumSpeed)
+		cal += d.Activities.Activity[0].Lap.Calories
 	}
-	for _, p := range data2.Activities.Activity[0].Lap.Track.Trackpoint {
-		points[k] = p
-		k++
-	}
-
-	t1 := data1.Activities.Activity[0].Lap.TotalTimeSeconds
-	t2 := data2.Activities.Activity[0].Lap.TotalTimeSeconds
-	totalTime := t1 + t2
-
-	dist1 := data1.Activities.Activity[0].Lap.DistanceMeters
-	dist2 := data2.Activities.Activity[0].Lap.DistanceMeters
-	distance := dist1 + dist2
-
-	speed1 := data1.Activities.Activity[0].Lap.MaximumSpeed
-	speed2 := data2.Activities.Activity[0].Lap.MaximumSpeed
-	maxSpeed := math.Max(speed1, speed2)
-
-	cal1 := data1.Activities.Activity[0].Lap.Calories
-	cal2 := data2.Activities.Activity[0].Lap.Calories
-	cal := cal1 + cal2
 
 	var r Data
-	r.Activities.Activity = data1.Activities.Activity
+	r.Activities.Activity = data[0].Activities.Activity
 	r.Activities.Activity[0].Lap.TotalTimeSeconds = totalTime
 	r.Activities.Activity[0].Lap.DistanceMeters = distance
 	r.Activities.Activity[0].Lap.MaximumSpeed = maxSpeed
@@ -93,5 +83,6 @@ func merge() {
 }
 
 func main() {
-	merge()
+	arg := os.Args[1:]
+	merge(arg)
 }
